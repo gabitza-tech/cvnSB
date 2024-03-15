@@ -2,6 +2,15 @@
   <img src="https://raw.githubusercontent.com/speechbrain/speechbrain/develop/docs/images/speechbrain-logo.svg" alt="SpeechBrain Logo"/>
 </p>
 
+
+```
+git clone https://github.com/speechbrain/speechbrain.git
+cd speechbrain
+pip install -r requirements.txt
+python3 -m pip install --user e .
+```
+
+
 [![Typing SVG](https://readme-typing-svg.demolab.com?font=Fira+Code&size=40&duration=7000&pause=1000&random=false&width=1200&height=100&lines=Simplify+Conversational+AI+Development)](https://git.io/typing-svg)
 
 
