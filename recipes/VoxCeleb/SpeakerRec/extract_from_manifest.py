@@ -45,18 +45,21 @@ def compute_embeddings(model, wav_scp, outdir):
     with open(wav_scp, "r") as f:
         lines = f.readlines()
 
-    batch_size = 4096
+    out_dict = {}
+    out_dict['concat_labels'] = []
+    out_dict['concat_slices'] = []
+    out_dict['concat_patchs'] = []
+    out_dict['concat_features'] = []
+    batch_size = 2048
+    
     for index in range(0,len(lines),batch_size):
         print(index)
         wavs = []
         for i in range(index,index+batch_size,1):
+            if i > len(lines)-1:
+                continue    
             data = json.loads(lines[i].strip())
-            
-            out_dict = {}
-            out_dict['concat_labels'] = []
-            out_dict['concat_slices'] = []
-            out_dict['concat_patchs'] = []
-            all_embs = []
+            batch_embs = []
 
             if 'patch' in data.keys():
                 out_dict['concat_patchs'].append(data['patch'])
@@ -81,7 +84,7 @@ def compute_embeddings(model, wav_scp, outdir):
             embeddings = model.encode_batch(*wavs["wav"])
             for embedding in embeddings:
                 out_embedding = embedding.detach().cpu().numpy().squeeze(0)
-                all_embs.append(out_embedding)
+                batch_embs.append(out_embedding)
 
             del embeddings, wavs
 
@@ -89,8 +92,10 @@ def compute_embeddings(model, wav_scp, outdir):
             os.mkdir(outdir)
         
         out_file = "{}/{}_ecapa_embs.pkl".format(outdir, os.path.splitext(os.path.basename(wav_scp))[0])
-        out_dict['concat_features'] = np.asarray(all_embs)
-        pkl.dump(out_dict, open(out_file, 'wb'))
+        out_dict['concat_features'].append(np.asarray(batch_embs))
+    
+    out_dict['concat_features'] = np.concatenate(out_dict['concat_features'],axis=0)
+    pkl.dump(out_dict, open(out_file, 'wb'))
 
 
 if __name__ == "__main__":
