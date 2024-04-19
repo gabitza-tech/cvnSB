@@ -40,7 +40,8 @@ from hyperpyyaml import load_hyperpyyaml
 
 from speechbrain.utils.distributed import run_on_main
 from speechbrain.utils.data_utils import download_file
-
+from tqdm import tqdm
+import pickle as pkl
 
 def compute_embeddings_single(wavs, wav_lens, params):
     """Compute speaker embeddings.
@@ -76,9 +77,20 @@ def compute_embeddings(params, wav_scp, outdir):
     """
     with torch.no_grad():
         with open(wav_scp, "r") as wavscp:
-            for line in wavscp:
+            out_dict = {}
+            out_dict['concat_labels'] = []
+            out_dict['concat_slices'] = []
+            out_dict['concat_patchs'] = []
+            all_embs = []
+            for line in tqdm(wavscp):
                 utt, wav_path = line.split()
-                out_file = "{}/{}.npy".format(outdir, utt)
+                out_dict['concat_slices'].append(utt)
+                out_dict['concat_labels'].append(wav_path.split('/')[-2])
+                if "_window" in wav_path:
+                    out_dict['concat_patchs'].append(os.path.basename(os.path.splitext(wav_path)[0].split("_window")[0]))
+                else:
+                    out_dict['concat_patchs'].append(utt)
+                
                 wav, _ = torchaudio.load(wav_path)
                 data = wav.transpose(0, 1).squeeze(1).unsqueeze(0)
                 lens = torch.Tensor([data.shape[1]])
@@ -91,8 +103,15 @@ def compute_embeddings(params, wav_scp, outdir):
                 ).squeeze()
 
                 out_embedding = embedding.detach().cpu().numpy()
-                np.save(out_file, out_embedding)
+                all_embs.append(out_embedding)
+
                 del out_embedding, wav, data
+
+            out_file = "{}/{}_ecapa_embs.pkl".format(outdir, os.path.splitext(wav_scp)[0])
+            out_dict['concat_features'] = np.asarray(all_embs)
+            pkl.dump(out_dict, open(out_file, 'wb'))
+
+            
 
 
 if __name__ == "__main__":
@@ -107,6 +126,7 @@ if __name__ == "__main__":
 
     # Load hyperparameters file with command-line overrides
     params_file, run_opts, overrides = sb.core.parse_arguments(sys.argv[3:])
+    print(run_opts["device"])
     if "data_folder:" not in overrides:
         # By default it is a PLACEHOLDER (we need to replace it with a dummy path)
         overrides += "\ndata_folder: ."
@@ -114,10 +134,13 @@ if __name__ == "__main__":
         # Ensure to put the saved model in the output folder
         overrides += f"\noutput_folder: {out_dir}"
 
+    print(params_file)
     with open(params_file) as fin:
         params = load_hyperpyyaml(fin, overrides)
+    
     run_on_main(params["pretrainer"].collect_files)
-    params["pretrainer"].load_collected(run_opts["device"])
+    print(params)
+    params["pretrainer"].load_collected()#run_opts["device"])
     params["embedding_model"].eval()
     params["embedding_model"].to(run_opts["device"])
 
